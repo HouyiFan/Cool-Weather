@@ -66,16 +66,26 @@ public class WeatherActivity extends AppCompatActivity {
 
     private TextView comfortText;
 
-    private TextView carWashText;
+    private TextView dressText;
+
+    private TextView fluText;
 
     private TextView sportText;
+
+    private TextView travelText;
+
+    private TextView uvText;
+
+    private TextView carWashText;
+
+    private TextView airText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (Build.VERSION.SDK_INT >= 21) {
             View decorView = getWindow().getDecorView();
-            decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
+            decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
             getWindow().setStatusBarColor(Color.TRANSPARENT);
         }
@@ -91,8 +101,13 @@ public class WeatherActivity extends AppCompatActivity {
         aqiText = findViewById(R.id.aqi_text);
         pm25Text = findViewById(R.id.pm25_text);
         comfortText = findViewById(R.id.comfort_text);
-        carWashText = findViewById(R.id.car_wash_text);
+        dressText = findViewById(R.id.dress_text);
+        fluText = findViewById(R.id.flu_text);
         sportText = findViewById(R.id.sport_text);
+        travelText = findViewById(R.id.travel_text);
+        uvText = findViewById(R.id.ultraviolet_text);
+        carWashText = findViewById(R.id.car_wash_text);
+        airText = findViewById(R.id.air_text);
         swipeRefresh = findViewById(R.id.swipe_refresh);
         swipeRefresh.setColorSchemeResources(R.color.colorPrimary);
         drawerLayout = findViewById(R.id.drawer_layout);
@@ -103,7 +118,7 @@ public class WeatherActivity extends AppCompatActivity {
             //有缓存时直接解析天气数据
             Weather weather = Utility.handleWeatherResponse(weatherString);
             mWeatherId = weather.basic.weatherId;
-            showWeatherInfo(weather);
+            showWeatherInfo(weather, mWeatherId);
         } else {
             //无缓存时去服务器查询天气
             mWeatherId = getIntent().getStringExtra("weather_id");
@@ -136,8 +151,6 @@ public class WeatherActivity extends AppCompatActivity {
      * 根据天气id请求城市天气信息
      */
     public void requestWeather(final String weatherId) {
-//        String weatherUrl = "http://guolin.tech/api/weather?cityid=" + weatherId
-//                + "&key=fd1e7d5ee8e548f8b41bc02c5b7a6f7d";
         String weatherUrl = "https://free-api.heweather.net/s6/weather?location=" + weatherId
                 + "&key=" + BuildConfig.API_KEY;
 
@@ -157,7 +170,7 @@ public class WeatherActivity extends AppCompatActivity {
                             editor.putString("weather", responseText);
                             editor.apply();
                             mWeatherId = weather.basic.weatherId;
-                            showWeatherInfo(weather);
+                            showWeatherInfo(weather, mWeatherId);
                         } else {
                             Toast.makeText(WeatherActivity.this, "Failed to get weather information",
                                     Toast.LENGTH_SHORT).show();
@@ -214,7 +227,7 @@ public class WeatherActivity extends AppCompatActivity {
     /**
      * 处理并展示Weather实体类中的数据
      */
-    private void showWeatherInfo(Weather weather) {
+    private void showWeatherInfo(Weather weather, String weatherId) {
         String cityName = weather.basic.cityName;
         String updateTime = weather.update.updateTime.split(" ")[1];
         String degree = weather.now.temperature + "℃";
@@ -237,26 +250,42 @@ public class WeatherActivity extends AppCompatActivity {
             minText.setText(forecast.min);
             forecastLayout.addView(view);
         }
-        if (weather.airnowcity != null) {
-            aqiText.setText(weather.airnowcity.aqi);
-            pm25Text.setText(weather.airnowcity.pm25);
-        }
 
-        // 这里要大改，改成与上面的Forecast差不多的情况
+        requestAirCondition(weatherId);
+
         for (Lifestyle lifestyle: weather.lifestyleList) {
             switch (lifestyle.type) {
                 case "comf":
                     String comfort = "舒适度: " + lifestyle.suggestion;
                     comfortText.setText(comfort);
                     break;
-                case "cw":
-                    String carWash = "洗车指数: " + lifestyle.suggestion;
-                    carWashText.setText(carWash);
-
+                case "drsg":
+                    String dress = "穿衣指数: " + lifestyle.suggestion;
+                    dressText.setText(dress);
+                    break;
+                case "flu":
+                    String flu = "感冒指数: " + lifestyle.suggestion;
+                    fluText.setText(flu);
                     break;
                 case "sport":
                     String sport = "运动建议: " + lifestyle.suggestion;
                     sportText.setText(sport);
+                    break;
+                case "trav":
+                    String travel = "旅游指数: " + lifestyle.suggestion;
+                    travelText.setText(travel);
+                    break;
+                case "uv":
+                    String uv = "紫外线指数: " + lifestyle.suggestion;
+                    uvText.setText(uv);
+                    break;
+                case "cw":
+                    String carWash = "洗车指数: " + lifestyle.suggestion;
+                    carWashText.setText(carWash);
+                    break;
+                case "air":
+                    String air = "空气指数: " + lifestyle.suggestion;
+                    airText.setText(air);
                     break;
                 default:
                     break;
@@ -265,6 +294,63 @@ public class WeatherActivity extends AppCompatActivity {
         weatherLayout.setVisibility(View.VISIBLE);
         Intent intent = new Intent(this, AutoUpdateService.class);
         startService(intent);
+    }
+
+    /**
+     * 请求天气质量状况（aqi和pm2.5指数)
+     * Request the air condition, including aqi and pm 2.5
+     */
+    private void requestAirCondition(String weatherId) {
+        String airUrl = "https://free-api.heweather.net/s6/air/now?location=" + weatherId
+                + "&key=" + BuildConfig.API_KEY;
+
+        HttpUtil.sendOkHttpRequest(airUrl, new Callback() {
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                final String responseText = response.body().string();
+//                Log.e(TAG, "onResponse: " + responseText);
+                final Weather air = Utility.handleWeatherResponse(responseText);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (air != null && "ok".equals(air.status)) {
+                            mWeatherId = air.basic.weatherId;
+                            getAirCondition(air, mWeatherId);
+                        } else {
+                            Toast.makeText(WeatherActivity.this, "Failed to get air condition",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                        swipeRefresh.setRefreshing(false);
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(Call call, IOException e) {
+                e.printStackTrace();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(WeatherActivity.this, "Failed to get air condition",
+                                Toast.LENGTH_SHORT).show();
+                        swipeRefresh.setRefreshing(false);
+                    }
+                });
+            }
+        });
+
+    }
+
+    /**
+     * 得到天气质量状况（aqi和pm2.5指数)
+     */
+    private void getAirCondition(Weather air, String mWeatherId) {
+//        Log.e(TAG, "getAirConidtion: " + air.airnowcity.quality);
+        if (air.airnowcity != null) {
+            aqiText.setText(air.airnowcity.aqi);
+            pm25Text.setText(air.airnowcity.pm25);
+        }
     }
 
 }

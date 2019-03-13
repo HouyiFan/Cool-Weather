@@ -12,6 +12,7 @@ public class Weather {
 
     public Update update;
 
+    @SerializedName("air_now_city")
     public Air_now_city airnowcity;
 
     public Now now;
