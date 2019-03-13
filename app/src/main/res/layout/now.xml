@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -22,5 +24,44 @@
         android:textColor="#fff"
         android:textSize="20sp"
         />
+
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <android.support.design.button.MaterialButton
+            android:id="@+id/get_current_location_weather"
+            style="@style/Widget.AppCompat.Button.Borderless"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="获取所在地天气"
+            android:textColor="#fff"
+            android:textSize="12sp"
+            app:backgroundTint="#808080"
+            app:cornerRadius="8dp"
+            app:rippleColor="#33AAAAAA"
+            app:strokeColor="#fff"
+            app:strokeWidth="2dp" />
+
+        <EditText
+            android:id="@+id/input_location_name"
+            android:layout_marginTop="5dp"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentEnd="true"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="搜索你的城市(全名)"
+            android:autofillHints="搜索你的城市(全名)"
+            android:textColorHint="#fff"
+            android:textColor="#fff"
+            android:textSize="12sp"
+            android:inputType="text"
+            android:layout_toLeftOf="@+id/get_current_location_weather"
+            android:layout_toStartOf="@+id/get_current_location_weather"
+            android:maxLength="25"
+            tools:ignore="RelativeOverlap,UnusedAttribute" />
+
+    </RelativeLayout>
 
 </LinearLayout>

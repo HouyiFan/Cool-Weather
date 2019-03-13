@@ -1,19 +1,30 @@
 package com.coolweather.android;
 
+import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Build;
 import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -34,7 +45,7 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
 
-public class WeatherActivity extends AppCompatActivity {
+public class WeatherActivity extends AppCompatActivity implements LocationListener {
 
     private static final String TAG = "WeatherActivity";
 
@@ -80,6 +91,14 @@ public class WeatherActivity extends AppCompatActivity {
 
     private TextView airText;
 
+    private LocationManager locationManager;
+
+    private Button getCurrentLocationWeatherButton;
+
+    private SharedPreferences prefs;
+
+    private EditText userInputLocationText;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -112,23 +131,32 @@ public class WeatherActivity extends AppCompatActivity {
         swipeRefresh.setColorSchemeResources(R.color.colorPrimary);
         drawerLayout = findViewById(R.id.drawer_layout);
         navButton = findViewById(R.id.nav_button);
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        getCurrentLocationWeatherButton = findViewById(R.id.get_current_location_weather);
+        userInputLocationText = findViewById(R.id.input_location_name);
+        prefs = PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString = prefs.getString("weather", null);
         if (weatherString != null) {
             //有缓存时直接解析天气数据
             Weather weather = Utility.handleWeatherResponse(weatherString);
-            mWeatherId = weather.basic.weatherId;
-            showWeatherInfo(weather, mWeatherId);
+            if (weather != null) {
+                mWeatherId = weather.basic.weatherId;
+                showWeatherInfo(weather);
+                Log.d(TAG, "onCreate: " + mWeatherId + " have cache");
+            } else {
+                Toast.makeText(this, "Unexpected error happens", Toast.LENGTH_LONG).show();
+            }
         } else {
             //无缓存时去服务器查询天气
             mWeatherId = getIntent().getStringExtra("weather_id");
             weatherLayout.setVisibility(View.INVISIBLE);
             requestWeather(mWeatherId);
+            Log.d(TAG, "onCreate: " + mWeatherId + " no cache");
         }
         swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
                 requestWeather(mWeatherId);
+                Log.d(TAG, "onRefresh: " + mWeatherId);
             }
         });
         String bingPic = prefs.getString("bing_pic",  null);
@@ -145,6 +173,35 @@ public class WeatherActivity extends AppCompatActivity {
             }
         });
 
+        getCurrentLocationWeatherButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (ContextCompat.checkSelfPermission(WeatherActivity.this, Manifest.permission
+                        .ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(WeatherActivity.this,
+                            new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+                } else {
+                    locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 600000, 0, WeatherActivity.this);
+                }
+            }
+        });
+
+        userInputLocationText.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent keyEvent) {
+                if ((keyEvent.getAction() == KeyEvent.ACTION_DOWN)
+                        && (keyCode == KeyEvent.KEYCODE_ENTER)) {
+//                    Toast.makeText(getApplicationContext(), userInputLocationText.getText().toString(), Toast.LENGTH_LONG).show();
+                    String userInputLocation = userInputLocationText.getText().toString().trim();
+                    requestWeather(userInputLocation);
+
+                    return true;
+                }
+                return false;
+            }
+        });
+
     }
 
     /**
@@ -154,11 +211,14 @@ public class WeatherActivity extends AppCompatActivity {
         String weatherUrl = "https://free-api.heweather.net/s6/weather?location=" + weatherId
                 + "&key=" + BuildConfig.API_KEY;
 
-        Log.d(TAG, "requestWeather: " + weatherId);
+//        Log.d(TAG, "requestWeather: " + weatherId);
         HttpUtil.sendOkHttpRequest(weatherUrl, new Callback() {
-
             @Override
-            public void onResponse(Call call, Response response) throws IOException {
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.body() == null) {
+                    Toast.makeText(WeatherActivity.this, "Empty HTTP response", Toast.LENGTH_LONG).show();
+                    return;
+                }
                 final String responseText = response.body().string();
                 final Weather weather = Utility.handleWeatherResponse(responseText);
                 runOnUiThread(new Runnable() {
@@ -170,18 +230,24 @@ public class WeatherActivity extends AppCompatActivity {
                             editor.putString("weather", responseText);
                             editor.apply();
                             mWeatherId = weather.basic.weatherId;
-                            showWeatherInfo(weather, mWeatherId);
+//                            Log.d(TAG, "run: " + mWeatherId);
+                            showWeatherInfo(weather);
+//                            Log.d(TAG, "run: After show " + mWeatherId);
+                        } else if (weather != null && "unknown location".equals(weather.status)){
+                            Toast.makeText(WeatherActivity.this, "Your location is unknown",
+                                    Toast.LENGTH_SHORT).show();
                         } else {
                             Toast.makeText(WeatherActivity.this, "Failed to get weather information",
                                     Toast.LENGTH_SHORT).show();
                         }
+                        userInputLocationText.setText("");
                         swipeRefresh.setRefreshing(false);
                     }
                 });
             }
 
             @Override
-            public void onFailure(Call call, IOException e) {
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 e.printStackTrace();
                 runOnUiThread(new Runnable() {
                     @Override
@@ -203,7 +269,11 @@ public class WeatherActivity extends AppCompatActivity {
         String requestBingPic = "http://guolin.tech/api/bing_pic";
         HttpUtil.sendOkHttpRequest(requestBingPic, new Callback() {
             @Override
-            public void onResponse(Call call, Response response) throws IOException {
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.body() == null) {
+                    Toast.makeText(WeatherActivity.this, "Empty HTTP response", Toast.LENGTH_LONG).show();
+                    return;
+                }
                 final String bingPic = response.body().string();
                 SharedPreferences.Editor editor = PreferenceManager.
                         getDefaultSharedPreferences(WeatherActivity.this).edit();
@@ -218,7 +288,7 @@ public class WeatherActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(Call call, IOException e) {
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 e.printStackTrace();
             }
         });
@@ -227,7 +297,8 @@ public class WeatherActivity extends AppCompatActivity {
     /**
      * 处理并展示Weather实体类中的数据
      */
-    private void showWeatherInfo(Weather weather, String weatherId) {
+    private void showWeatherInfo(Weather weather) {
+
         String cityName = weather.basic.cityName;
         String updateTime = weather.update.updateTime.split(" ")[1];
         String degree = weather.now.temperature + "℃";
@@ -251,8 +322,20 @@ public class WeatherActivity extends AppCompatActivity {
             forecastLayout.addView(view);
         }
 
-        requestAirCondition(weatherId);
+        requestAirCondition(weather.basic.parentCityName);
 
+        if (weather.lifestyleList == null) {
+            Toast.makeText(this, "Lifestyle suggestion only works for China", Toast.LENGTH_LONG).show();
+            comfortText.setText("");
+            dressText.setText("");
+            fluText.setText("");
+            sportText.setText("");
+            travelText.setText("");
+            uvText.setText("");
+            carWashText.setText("");
+            airText.setText("");
+            return;
+        }
         for (Lifestyle lifestyle: weather.lifestyleList) {
             switch (lifestyle.type) {
                 case "comf":
@@ -300,26 +383,36 @@ public class WeatherActivity extends AppCompatActivity {
      * 请求天气质量状况（aqi和pm2.5指数)
      * Request the air condition, including aqi and pm 2.5
      */
-    private void requestAirCondition(String weatherId) {
+    private void requestAirCondition(final String weatherId) {
         String airUrl = "https://free-api.heweather.net/s6/air/now?location=" + weatherId
                 + "&key=" + BuildConfig.API_KEY;
+
+        Log.d(TAG, "requestAirCondition: " + weatherId );
+        Log.d(TAG, "requestAirCondition: " + airUrl);
 
         HttpUtil.sendOkHttpRequest(airUrl, new Callback() {
 
             @Override
-            public void onResponse(Call call, Response response) throws IOException {
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.body() == null) {
+                    Toast.makeText(WeatherActivity.this, "Empty HTTP response", Toast.LENGTH_LONG).show();
+                    return;
+                }
                 final String responseText = response.body().string();
-//                Log.e(TAG, "onResponse: " + responseText);
+//                Log.d(TAG, "onResponse: " + responseText);
                 final Weather air = Utility.handleWeatherResponse(responseText);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         if (air != null && "ok".equals(air.status)) {
-                            mWeatherId = air.basic.weatherId;
-                            getAirCondition(air, mWeatherId);
+//                            mWeatherId = air.basic.weatherId;
+                            getAirCondition(air);
                         } else {
-                            Toast.makeText(WeatherActivity.this, "Failed to get air condition",
-                                    Toast.LENGTH_SHORT).show();
+                            Toast.makeText(WeatherActivity.this, "Failed to get air condition\n"
+                                    + "Possible reason: Your area is not covered",
+                                    Toast.LENGTH_LONG).show();
+                            aqiText.setText("");
+                            pm25Text.setText("");
                         }
                         swipeRefresh.setRefreshing(false);
                     }
@@ -327,13 +420,15 @@ public class WeatherActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(Call call, IOException e) {
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 e.printStackTrace();
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(WeatherActivity.this, "Failed to get air condition",
-                                Toast.LENGTH_SHORT).show();
+                        Toast.makeText(WeatherActivity.this, "Failed to get air condition. Unexpected Error happens.",
+                                Toast.LENGTH_LONG).show();
+                        aqiText.setText("");
+                        pm25Text.setText("");
                         swipeRefresh.setRefreshing(false);
                     }
                 });
@@ -345,12 +440,58 @@ public class WeatherActivity extends AppCompatActivity {
     /**
      * 得到天气质量状况（aqi和pm2.5指数)
      */
-    private void getAirCondition(Weather air, String mWeatherId) {
-//        Log.e(TAG, "getAirConidtion: " + air.airnowcity.quality);
+    private void getAirCondition(Weather air) {
+//        Log.d(TAG, "getAirConidtion: " + air.airnowcity.quality);
         if (air.airnowcity != null) {
             aqiText.setText(air.airnowcity.aqi);
             pm25Text.setText(air.airnowcity.pm25);
         }
     }
 
+    @Override
+    public void onProviderEnabled(String provider) {
+        Log.d(TAG, "location provider enabled");
+    }
+
+    @Override
+    public void onProviderDisabled(String provider) {
+        Log.d(TAG, "location provider disabled");
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        Toast.makeText(this, "Detect your location: " + location.getLongitude() + ", "
+                + location.getLatitude(), Toast.LENGTH_LONG).show();
+        String weatherId = location.getLongitude() + "," + location.getLatitude();
+        requestWeather(weatherId);
+        String bingPic = prefs.getString("bing_pic",  null);
+        if (bingPic != null) {
+            Glide.with(WeatherActivity.this).load(bingPic).into(bingPicImg);
+        } else {
+            loadBingPic();
+        }
+        Log.d(TAG, "location changed to : Longitude" + location.getLongitude()
+                + ", Latitude: " + location.getLatitude());
+    }
+
+    @Override
+    public void onStatusChanged(String provider, int status, Bundle extras) {
+        Log.d(TAG, "status changed to " + status);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        switch (requestCode) {
+            case 1:
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 600000, 0, this);
+                } else {
+                    Toast.makeText(this, "Cannot use this button without authorization", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            default:
+                break;
+        }
+    }
 }
