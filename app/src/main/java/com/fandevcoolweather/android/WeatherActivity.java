@@ -1,4 +1,4 @@
-package com.coolweather.android;
+package com.fandevcoolweather.android;
 
 import android.Manifest;
 import android.content.Context;
@@ -32,12 +32,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.bumptech.glide.Glide;
-import com.coolweather.android.gson.Forecast;
-import com.coolweather.android.gson.Lifestyle;
-import com.coolweather.android.gson.Weather;
-import com.coolweather.android.service.AutoUpdateService;
-import com.coolweather.android.util.HttpUtil;
-import com.coolweather.android.util.Utility;
+import com.fandevcoolweather.android.gson.Forecast;
+import com.fandevcoolweather.android.gson.Lifestyle;
+import com.fandevcoolweather.android.gson.Weather;
+import com.fandevcoolweather.android.service.AutoUpdateService;
+import com.fandevcoolweather.android.util.HttpUtil;
+import com.fandevcoolweather.android.util.Utility;
 
 import java.io.IOException;
 
