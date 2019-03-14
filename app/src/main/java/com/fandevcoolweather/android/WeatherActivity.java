@@ -161,7 +161,7 @@ public class WeatherActivity extends AppCompatActivity implements LocationListen
         });
         String bingPic = prefs.getString("bing_pic",  null);
         if (bingPic != null) {
-            Glide.with(this).load(bingPic).into(bingPicImg);
+            Glide.with(getApplicationContext()).load(bingPic).into(bingPicImg);
         } else {
             loadBingPic();
         }
@@ -282,7 +282,7 @@ public class WeatherActivity extends AppCompatActivity implements LocationListen
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Glide.with(WeatherActivity.this).load(bingPic).into(bingPicImg);
+                        Glide.with(getApplicationContext()).load(bingPic).into(bingPicImg);
                     }
                 });
             }
@@ -466,7 +466,7 @@ public class WeatherActivity extends AppCompatActivity implements LocationListen
         requestWeather(weatherId);
         String bingPic = prefs.getString("bing_pic",  null);
         if (bingPic != null) {
-            Glide.with(WeatherActivity.this).load(bingPic).into(bingPicImg);
+            Glide.with(getApplicationContext()).load(bingPic).into(bingPicImg);
         } else {
             loadBingPic();
         }
